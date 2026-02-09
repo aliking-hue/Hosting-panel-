@@ -1,0 +1,28 @@
+{
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.py"
+    }
+  ],
+  "env": {
+    "PYTHON_VERSION": "3.9"
+  },
+  "build": {
+    "env": {
+      "SECRET_KEY": "your-secret-key-change-in-production",
+      "ADMIN_USERNAME": "admin",
+      "ADMIN_PASSWORD": "admin123"
+    }
+  }
+}
