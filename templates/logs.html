@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal/Logs - Bot Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo">
+            <i class="fas fa-robot"></i>
+            <h2>Bot Dashboard</h2>
+        </div>
+        
+        <!-- Developer Info Section -->
+        <div class="developer-info">
+            <div class="dev-header">
+                <i class="fas fa-code"></i>
+                <h3>Developer Info</h3>
+            </div>
+            <div class="dev-content">
+                <p><i class="fas fa-user"></i> DARK MODS</p>
+                <p><i class="fas fa-bolt"></i> Premium Bot Hosting</p>
+                <p><i class="fas fa-shield-alt"></i> Secure & Reliable</p>
+            </div>
+        </div>
+        
+        <nav class="nav-menu">
+            <a href="/" class="nav-item">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/files" class="nav-item">
+                <i class="fas fa-file-code"></i>
+                <span>File Manager</span>
+            </a>
+            <a href="/users" class="nav-item">
+                <i class="fas fa-users"></i>
+                <span>User Management</span>
+            </a>
+            <a href="/logs" class="nav-item active">
+                <i class="fas fa-terminal"></i>
+                <span>Terminal/Logs</span>
+            </a>
+            <a href="/logout" class="nav-item logout">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </a>
+        </nav>
+        
+        <!-- Footer -->
+        <div class="sidebar-footer">
+            <div class="footer-content">
+                <p><i class="fas fa-bolt"></i> Powered by DARK MODS</p>
+                <a href="https://t.me/DARK0MODS" target="_blank" class="telegram-link">
+                    <i class="fab fa-telegram"></i> @DARK0MODS
+                </a>
+            </div>
+        </div>
+        
+        <div class="user-info">
+            <i class="fas fa-user-circle"></i>
+            <span>{{ session.username }}</span>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <header class="header">
+            <h1><i class="fas fa-terminal"></i> Terminal & Logs</h1>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="clearLogs()">
+                    <i class="fas fa-trash"></i> Clear Logs
+                </button>
+                <button class="btn btn-secondary" id="refreshLogs">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button class="btn btn-success" onclick="toggleAutoRefresh()" id="autoRefreshBtn">
+                    <i class="fas fa-play"></i> Auto Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- Terminal Controls -->
+        <div class="section">
+            <div class="section-header">
+                <h2><i class="fas fa-sliders-h"></i> Terminal Controls</h2>
+                <div class="control-buttons">
+                    <button class="btn btn-sm btn-info" onclick="scrollToTop()">
+                        <i class="fas fa-arrow-up"></i> Top
+                    </button>
+                    <button class="btn btn-sm btn-info" onclick="scrollToBottom()">
+                        <i class="fas fa-arrow-down"></i> Bottom
+                    </button>
+                    <button class="btn btn-sm btn-warning" onclick="pauseLogs()" id="pauseBtn">
+                        <i class="fas fa-pause"></i> Pause
+                    </button>
+                </div>
+            </div>
+            
+            <div class="controls-grid">
+                <div class="control-group">
+                    <label><i class="fas fa-filter"></i> Filter Logs</label>
+                    <select id="logFilter" class="form-control" onchange="applyFilter()">
+                        <option value="all">All Logs</option>
+                        <option value="info">Info Only</option>
+                        <option value="success">Success Only</option>
+                        <option value="warning">Warnings Only</option>
+                        <option value="error">Errors Only</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label><i class="fas fa-list-ol"></i> Show Last</label>
+                    <select id="logLimit" class="form-control" onchange="applyLimit()">
+                        <option value="50">50 Lines</option>
+                        <option value="100" selected>100 Lines</option>
+                        <option value="200">200 Lines</option>
+                        <option value="500">500 Lines</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label><i class="fas fa-search"></i> Search</label>
+                    <input type="text" id="logSearch" class="form-control" 
+                           placeholder="Search in logs..." oninput="searchLogs()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal Window -->
+        <div class="section">
+            <div class="section-header">
+                <h2><i class="fas fa-desktop"></i> Live Terminal</h2>
+                <div class="terminal-stats">
+                    <span class="stat-badge">
+                        <i class="fas fa-clock"></i> Updated: <span id="lastUpdate">Just now</span>
+                    </span>
+                    <span class="stat-badge">
+                        <i class="fas fa-file-lines"></i> Lines: <span id="lineCount">0</span>
+                    </span>
+                </div>
+            </div>
+            
+            <div class="terminal-window">
+                <div class="terminal-header">
+                    <div class="terminal-dots">
+                        <span class="dot red"></span>
+                        <span class="dot yellow"></span>
+                        <span class="dot green"></span>
+                    </div>
+                    <div class="terminal-title">
+                        <i class="fas fa-terminal"></i> Bot Dashboard Logs
+                    </div>
+                </div>
+                
+                <div class="terminal-body" id="terminalContent">
+                    <div class="terminal-line welcome">
+                        <span class="prompt">$</span> Welcome to Bot Dashboard Terminal
+                    </div>
+                    <div class="terminal-line info">
+                        <span class="prompt">$</span> Loading logs...
+                    </div>
+                </div>
+                
+                <div class="terminal-footer">
+                    <div class="terminal-input">
+                        <span class="prompt">$</span>
+                        <input type="text" id="terminalInput" placeholder="Type commands here..." 
+                               onkeypress="handleTerminalInput(event)">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon info">
+                    <i class="fas fa-info-circle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>Info Logs</h3>
+                    <div class="stat-value" id="infoCount">0</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>Success Logs</h3>
+                    <div class="stat-value" id="successCount">0</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>Warning Logs</h3>
+                    <div class="stat-value" id="warningCount">0</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon error">
+                    <i class="fas fa-exclamation-circle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>Error Logs</h3>
+                    <div class="stat-value" id="errorCount">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Events -->
+        <div class="section">
+            <h2><i class="fas fa-history"></i> Recent Events</h2>
+            <div class="events-timeline" id="eventsTimeline">
+                <!-- Events will be loaded here -->
+                <div class="timeline-item">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <p>Loading events...</p>
+                        <small>Just now</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer"></div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script>
+        let autoRefreshInterval = null;
+        let isAutoRefresh = false;
+        let isPaused = false;
+        let allLogs = [];
+        let filteredLogs = [];
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLogs();
+            
+            // Refresh button
+            document.getElementById('refreshLogs').addEventListener('click', function() {
+                loadLogs();
+                showToast('Logs refreshed', 'success');
+            });
+            
+            // Enable auto-refresh by default
+            toggleAutoRefresh();
+            
+            // Initialize highlight.js
+            hljs.highlightAll();
+        });
+        
+        function loadLogs() {
+            if (isPaused) return;
+            
+            const limit = document.getElementById('logLimit').value;
+            
+            fetch(`/api/logs?limit=${limit}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        allLogs = data.logs;
+                        updateLastUpdate();
+                        applyFilter();
+                        updateStatistics();
+                        updateEventsTimeline();
+                    } else {
+                        showToast('Error loading logs: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading logs:', error);
+                });
+        }
+        
+        function updateLastUpdate() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            document.getElementById('lastUpdate').textContent = timeString;
+        }
+        
+        function applyFilter() {
+            const filter = document.getElementById('logFilter').value;
+            const searchTerm = document.getElementById('logSearch').value.toLowerCase();
+            
+            filteredLogs = allLogs.filter(log => {
+                // Apply type filter
+                let matchesType = true;
+                if (filter === 'info') {
+                    matchesType = log.includes('[INFO]');
+                } else if (filter === 'success') {
+                    matchesType = log.includes('[SUCCESS]');
+                } else if (filter === 'warning') {
+                    matchesType = log.includes('[WARNING]');
+                } else if (filter === 'error') {
+                    matchesType = log.includes('[ERROR]');
+                }
+                
+                // Apply search filter
+                const matchesSearch = searchTerm === '' || log.toLowerCase().includes(searchTerm);
+                
+                return matchesType && matchesSearch;
+            });
+            
+            renderLogs();
+        }
+        
+        function applyLimit() {
+            loadLogs();
+        }
+        
+        function searchLogs() {
+            applyFilter();
+        }
+        
+        function renderLogs() {
+            const terminalContent = document.getElementById('terminalContent');
+            terminalContent.innerHTML = '';
+            
+            // Add welcome message
+            const welcomeLine = document.createElement('div');
+            welcomeLine.className = 'terminal-line welcome';
+            welcomeLine.innerHTML = '<span class="prompt">$</span> Welcome to Bot Dashboard Terminal';
+            terminalContent.appendChild(welcomeLine);
+            
+            if (filteredLogs.length === 0) {
+                const emptyLine = document.createElement('div');
+                emptyLine.className = 'terminal-line info';
+                emptyLine.innerHTML = '<span class="prompt">$</span> No logs found matching your criteria';
+                terminalContent.appendChild(emptyLine);
+                return;
+            }
+            
+            filteredLogs.forEach(log => {
+                const line = document.createElement('div');
+                line.className = 'terminal-line';
+                
+                // Determine log type for styling
+                if (log.includes('[ERROR]')) {
+                    line.classList.add('error');
+                } else if (log.includes('[WARNING]')) {
+                    line.classList.add('warning');
+                } else if (log.includes('[SUCCESS]')) {
+                    line.classList.add('success');
+                } else if (log.includes('[INFO]')) {
+                    line.classList.add('info');
+                }
+                
+                // Highlight search term
+                const searchTerm = document.getElementById('logSearch').value.toLowerCase();
+                let displayLog = log;
+                if (searchTerm) {
+                    const regex = new RegExp(`(${searchTerm})`, 'gi');
+                    displayLog = log.replace(regex, '<mark>$1</mark>');
+                }
+                
+                line.innerHTML = `<span class="prompt">></span> ${displayLog}`;
+                terminalContent.appendChild(line);
+            });
+            
+            // Update line count
+            document.getElementById('lineCount').textContent = filteredLogs.length;
+            
+            // Auto-scroll to bottom
+            scrollToBottom();
+        }
+        
+        function updateStatistics() {
+            const infoCount = allLogs.filter(log => log.includes('[INFO]')).length;
+            const successCount = allLogs.filter(log => log.includes('[SUCCESS]')).length;
+            const warningCount = allLogs.filter(log => log.includes('[WARNING]')).length;
+            const errorCount = allLogs.filter(log => log.includes('[ERROR]')).length;
+            
+            document.getElementById('infoCount').textContent = infoCount;
+            document.getElementById('successCount').textContent = successCount;
+            document.getElementById('warningCount').textContent = warningCount;
+            document.getElementById('errorCount').textContent = errorCount;
+        }
+        
+        function updateEventsTimeline() {
+            const timeline = document.getElementById('eventsTimeline');
+            timeline.innerHTML = '';
+            
+            // Get recent logs for timeline (last 10)
+            const recentLogs = allLogs.slice(-10).reverse();
+            
+            recentLogs.forEach(log => {
+                const item = document.createElement('div');
+                item.className = 'timeline-item';
+                
+                // Determine event type
+                let eventType = 'info';
+                let eventIcon = 'info-circle';
+                if (log.includes('[ERROR]')) {
+                    eventType = 'error';
+                    eventIcon = 'exclamation-circle';
+                } else if (log.includes('[WARNING]')) {
+                    eventType = 'warning';
+                    eventIcon = 'exclamation-triangle';
+                } else if (log.includes('[SUCCESS]')) {
+                    eventType = 'success';
+                    eventIcon = 'check-circle';
+                }
+                
+                // Extract timestamp and message
+                const timestampMatch = log.match(/\[(.*?)\]/);
+                const message = log.replace(/\[.*?\]\s*\[.*?\]\s*/, '');
+                
+                item.innerHTML = `
+                    <div class="timeline-marker ${eventType}">
+                        <i class="fas fa-${eventIcon}"></i>
+                    </div>
+                    <div class="timeline-content">
+                        <p>${message}</p>
+                        <small>${timestampMatch ? timestampMatch[1] : 'Unknown time'}</small>
+                    </div>
+                `;
+                
+                timeline.appendChild(item);
+            });
+        }
+        
+        function toggleAutoRefresh() {
+            const btn = document.getElementById('autoRefreshBtn');
+            
+            if (isAutoRefresh) {
+                clearInterval(autoRefreshInterval);
+                btn.innerHTML = '<i class="fas fa-play"></i> Auto Refresh';
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-success');
+                showToast('Auto-refresh stopped', 'warning');
+            } else {
+                autoRefreshInterval = setInterval(loadLogs, 5000); // 5 seconds
+                btn.innerHTML = '<i class="fas fa-stop"></i> Stop Auto';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-danger');
+                showToast('Auto-refresh started (5s)', 'success');
+            }
+            
+            isAutoRefresh = !isAutoRefresh;
+        }
+        
+        function pauseLogs() {
+            const btn = document.getElementById('pauseBtn');
+            
+            if (isPaused) {
+                btn.innerHTML = '<i class="fas fa-pause"></i> Pause';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-warning');
+                showToast('Logs resumed', 'success');
+            } else {
+                btn.innerHTML = '<i class="fas fa-play"></i> Resume';
+                btn.classList.remove('btn-warning');
+                btn.classList.add('btn-success');
+                showToast('Logs paused', 'warning');
+            }
+            
+            isPaused = !isPaused;
+        }
+        
+        function clearLogs() {
+            if (!confirm('Are you sure you want to clear all logs?')) return;
+            
+            const terminalContent = document.getElementById('terminalContent');
+            terminalContent.innerHTML = `
+                <div class="terminal-line welcome">
+                    <span class="prompt">$</span> Welcome to Bot Dashboard Terminal
+                </div>
+                <div class="terminal-line success">
+                    <span class="prompt">$</span> Logs cleared successfully
+                </div>
+            `;
+            
+            allLogs = [];
+            filteredLogs = [];
+            updateStatistics();
+            updateEventsTimeline();
+            
+            showToast('Logs cleared', 'success');
+        }
+        
+        function scrollToTop() {
+            const terminalContent = document.getElementById('terminalContent');
+            terminalContent.scrollTop = 0;
+        }
+        
+        function scrollToBottom() {
+            const terminalContent = document.getElementById('terminalContent');
+            terminalContent.scrollTop = terminalContent.scrollHeight;
+        }
+        
+        function handleTerminalInput(event) {
+            if (event.key === 'Enter') {
+                const input = document.getElementById('terminalInput');
+                const command = input.value.trim();
+                
+                if (command) {
+                    executeCommand(command);
+                    input.value = '';
+                }
+            }
+        }
+        
+        function executeCommand(command) {
+            const terminalContent = document.getElementById('terminalContent');
+            
+            // Add command to terminal
+            const commandLine = document.createElement('div');
+            commandLine.className = 'terminal-line command';
+            commandLine.innerHTML = `<span class="prompt">$</span> ${command}`;
+            terminalContent.appendChild(commandLine);
+            
+            // Execute command
+            let response = '';
+            switch(command.toLowerCase()) {
+                case 'help':
+                    response = 'Available commands: help, clear, stats, ping, time';
+                    break;
+                case 'clear':
+                    clearLogs();
+                    return;
+                case 'stats':
+                    response = `Logs: ${allLogs.length} total, ${filteredLogs.length} filtered`;
+                    break;
+                case 'ping':
+                    response = 'Pong! Bot Dashboard is running.';
+                    break;
+                case 'time':
+                    response = `Current time: ${new Date().toLocaleString()}`;
+                    break;
+                case 'status':
+                    response = 'System status: Online. All services operational.';
+                    break;
+                default:
+                    response = `Command not found: ${command}. Type 'help' for available commands.`;
+                    break;
+            }
+            
+            // Add response to terminal
+            const responseLine = document.createElement('div');
+            responseLine.className = 'terminal-line info';
+            responseLine.innerHTML = `<span class="prompt">></span> ${response}`;
+            terminalContent.appendChild(responseLine);
+            
+            // Scroll to bottom
+            scrollToBottom();
+        }
+        
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : 'info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            
+            document.getElementById('toastContainer').appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+    
+    <style>
+        .developer-info {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+        
+        .dev-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .dev-header i {
+            color: #6366f1;
+            font-size: 1.2rem;
+        }
+        
+        .dev-header h3 {
+            font-size: 0.9rem;
+            color: #f1f5f9;
+            margin: 0;
+        }
+        
+        .dev-content p {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin: 5px 0;
+        }
+        
+        .dev-content i {
+            width: 16px;
+            text-align: center;
+        }
+        
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 15px;
+            border-top: 1px solid #334155;
+            background: rgba(15, 23, 42, 0.5);
+        }
+        
+        .footer-content {
+            text-align: center;
+        }
+        
+        .footer-content p {
+            color: #6366f1;
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .telegram-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #0088cc;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+        
+        .telegram-link:hover {
+            color: #25d366;
+        }
+        
+        .control-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .control-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        
+        .form-control {
+            padding: 10px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #f1f5f9;
+        }
+        
+        .terminal-stats {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .stat-badge {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        
+        .terminal-window {
+            background: #1a1b26;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #334155;
+            margin-top: 15px;
+        }
+        
+        .terminal-header {
+            background: #24283b;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .terminal-dots {
+            display: flex;
+            gap: 8px;
+            margin-right: 15px;
+        }
+        
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .dot.red {
+            background: #ff5f57;
+        }
+        
+        .dot.yellow {
+            background: #ffbd2e;
+        }
+        
+        .dot.green {
+            background: #28ca42;
+        }
+        
+        .terminal-title {
+            color: #a9b1d6;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .terminal-body {
+            padding: 20px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 500px;
+            overflow-y: auto;
+            background: #1a1b26;
+            color: #c0caf5;
+        }
+        
+        .terminal-line {
+            margin-bottom: 5px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            line-height: 1.5;
+            padding: 2px 0;
+        }
+        
+        .terminal-line.welcome {
+            color: #7aa2f7;
+        }
+        
+        .terminal-line.info {
+            color: #7aa2f7;
+        }
+        
+        .terminal-line.success {
+            color: #9ece6a;
+        }
+        
+        .terminal-line.warning {
+            color: #e0af68;
+        }
+        
+        .terminal-line.error {
+            color: #f7768e;
+        }
+        
+        .terminal-line.command {
+            color: #bb9af7;
+        }
+        
+        .prompt {
+            color: #73daca;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        
+        mark {
+            background-color: rgba(224, 175, 104, 0.3);
+            color: #e0af68;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        .terminal-footer {
+            background: #24283b;
+            padding: 10px 15px;
+            border-top: 1px solid #334155;
+        }
+        
+        .terminal-input {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .terminal-input input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #c0caf5;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .stat-icon.info {
+            background-color: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+        
+        .stat-icon.success {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .stat-icon.warning {
+            background-color: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+        }
+        
+        .stat-icon.error {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .events-timeline {
+            position: relative;
+            padding-left: 30px;
+            margin-top: 20px;
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+        
+        .timeline-marker {
+            position: absolute;
+            left: -30px;
+            top: 0;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+        
+        .timeline-marker.info {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+        
+        .timeline-marker.success {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .timeline-marker.warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+        }
+        
+        .timeline-marker.error {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .timeline-content {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 12px 15px;
+        }
+        
+        .timeline-content p {
+            margin: 0 0 5px 0;
+            color: #f1f5f9;
+        }
+        
+        .timeline-content small {
+            color: #94a3b8;
+            font-size: 0.8rem;
+        }
+        
+        .timeline-item:before {
+            content: '';
+            position: absolute;
+            left: -21px;
+            top: 20px;
+            bottom: -20px;
+            width: 2px;
+            background: #334155;
+        }
+        
+        .timeline-item:last-child:before {
+            display: none;
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        
+        @media (max-width: 768px) {
+            .section-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 15px;
+            }
+            
+            .control-buttons {
+                justify-content: center;
+            }
+            
+            .terminal-stats {
+                justify-content: center;
+            }
+            
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</body>
+</html>
