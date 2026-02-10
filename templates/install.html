@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+
+{% block title %}Install Packages - Dark Hosting Panel{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Installation Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-box-seam"></i> Install Packages
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="installForm">
+                        <div class="mb-4">
+                            <label class="form-label">Package Manager</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="package_type" 
+                                       id="pip" value="pip" autocomplete="off" checked>
+                                <label class="btn btn-outline-primary" for="pip">
+                                    <i class="bi bi-python"></i> PIP (Python)
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="package_type" 
+                                       id="npm" value="npm" autocomplete="off">
+                                <label class="btn btn-outline-success" for="npm">
+                                    <i class="bi bi-node-plus"></i> NPM (Node.js)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label">Package Name</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="bi bi-box"></i>
+                                </span>
+                                <input type="text" class="form-control" 
+                                       name="package_name" 
+                                       placeholder="e.g., requests, flask, express"
+                                       required>
+                                <button class="btn btn-outline-secondary" type="button"
+                                        onclick="showExamples()">
+                                    <i class="bi bi-lightbulb"></i> Examples
+                                </button>
+                            </div>
+                            <small class="form-text text-secondary">
+                                Enter package name. For npm packages, use format: <code>package-name</code>
+                            </small>
+                        </div>
+                        
+                        <!-- Advanced Options -->
+                        <div class="accordion mb-4" id="advancedOptions">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" 
+                                            data-bs-toggle="collapse" data-bs-target="#collapseAdvanced">
+                                        <i class="bi bi-gear"></i> Advanced Options
+                                    </button>
+                                </h2>
+                                <div id="collapseAdvanced" class="accordion-collapse collapse" 
+                                     data-bs-parent="#advancedOptions">
+                                    <div class="accordion-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Version</label>
+                                            <input type="text" class="form-control" 
+                                                   name="version" 
+                                                   placeholder="e.g., ==2.28.0, ^1.0.0">
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="dev_dependency" id="devDependency">
+                                            <label class="form-check-label" for="devDependency">
+                                                Development dependency
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit -->
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary btn-lg" id="installBtn">
+                                <i class="bi bi-download"></i> Install Package
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Installation Progress -->
+                    <div class="mt-4 d-none" id="installProgress">
+                        <div class="alert alert-info">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-3" role="status"></div>
+                                <div>
+                                    <strong id="installStatus">Installing package...</strong>
+                                    <div id="installOutput" class="console mt-2" 
+                                         style="height: 200px; font-size: 12px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Popular Packages -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <i class="bi bi-star"></i> Popular Packages
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="border-bottom pb-2">Python Packages</h6>
+                            <div class="list-group list-group-flush">
+                                <a href="#" class="list-group-item list-group-item-action bg-transparent border-secondary"
+                                   onclick="installPackage('requests', 'pip')">
+                                    <i class="bi bi-python text-warning"></i>
+                                    <strong>requests</strong>
+                                    <span class="float-end text-secondary">HTTP library</span>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action bg-transparent border-secondary"
+                                   onclick="installPackage('flask', 'pip')">
+                                    <i class="bi bi-python text-warning"></i>
+                                    <strong>flask</strong>
+                                    <span class="float-end text-secondary">Web framework</span>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action bg-transparent border-secondary"
+                                   onclick="installPackage('telebot', 'pip')">
+                                    <i class="bi bi-python text-warning"></i>
+                                    <strong>pyTelegramBotAPI</strong>
+                                    <span class="float-end text-secondary">Telegram Bot API</span>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="border-bottom pb-2">Node.js Packages</h6>
+                            <div class="list-group list-group-flush">
+                                <a href="#" class="list-group-item list-group-item-action bg-transparent border-secondary"
+                                   onclick="installPackage('express', 'npm')">
+                                    <i class="bi bi-node-plus text-success"></i>
+                                    <strong>express</strong>
+                                    <span class="float-end text-secondary">Web framework</span>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action bg-transparent border-secondary"
+                                   onclick="installPackage('axios', 'npm')">
+                                    <i class="bi bi-node-plus text-success"></i>
+                                    <strong>axios</strong>
+                                    <span class="float-end text-secondary">HTTP client</span>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action bg-transparent border-secondary"
+                                   onclick="installPackage('node-telegram-bot-api', 'npm')">
+                                    <i class="bi bi-node-plus text-success"></i>
+                                    <strong>node-telegram-bot-api</strong>
+                                    <span class="float-end text-secondary">Telegram Bot API</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Installation History -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-clock-history"></i> Recent Installations
+                </div>
+                <div class="card-body">
+                    {% if install_history %}
+                    <div class="list-group list-group-flush">
+                        {% for install in install_history %}
+                        <div class="list-group-item bg-transparent border-secondary">
+                            <div class="d-flex w-100 justify-content-between">
+                                <strong>{{ install.module_name }}</strong>
+                                <small class="text-{% if install.status == 'success' %}success{% else %}danger{% endif %}">
+                                    {{ install.status }}
+                                </small>
+                            </div>
+                            <small class="text-secondary">
+                                {{ install.install_time[:19] }}<br>
+                                {% if install.package_name %}
+                                Package: {{ install.package_name }}
+                                {% endif %}
+                            </small>
+                            {% if install.log %}
+                            <button class="btn btn-sm btn-outline-secondary mt-2" 
+                                    onclick="showInstallLog({{ install.id }})">
+                                <i class="bi bi-eye"></i> View Log
+                            </button>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-3">
+                        <i class="bi bi-box display-4 text-secondary"></i>
+                        <p class="mt-3">No installation history yet</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- System Information -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <i class="bi bi-info-circle"></i> Package Information
+                </div>
+                <div class="card-body">
+                    <h6>Python Environment</h6>
+                    <ul class="list-unstyled">
+                        <li><small>Interpreter: Python {{ python_version }}</small></li>
+                        <li><small>PIP Version: {{ pip_version }}</small></li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Node.js Environment</h6>
+                    <ul class="list-unstyled">
+                        <li><small>Node Version: {{ node_version }}</small></li>
+                        <li><small>NPM Version: {{ npm_version }}</small></li>
+                    </ul>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <small>Packages are installed globally. Use virtual environments for isolation.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Log Modal -->
+<div class="modal fade" id="logModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-terminal"></i> Installation Log
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="console" id="installLog" style="height: 400px;">
+                    Loading log...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showExamples() {
+        const examples = [
+            'Python: requests, flask, django, numpy, pandas',
+            'Node.js: express, axios, socket.io, mongodb',
+            'Telegram: pyTelegramBotAPI, python-telegram-bot, node-telegram-bot-api'
+        ];
+        
+        alert('Common package examples:\n\n' + examples.join('\n'));
+    }
+    
+    function installPackage(packageName, packageType) {
+        document.querySelector(`input[value="${packageType}"]`).checked = true;
+        document.querySelector('input[name="package_name"]').value = packageName;
+    }
+    
+    // Form submission with live output
+    document.getElementById('installForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const packageName = formData.get('package_name');
+        const packageType = formData.get('package_type');
+        
+        // Show progress
+        document.getElementById('installProgress').classList.remove('d-none');
+        document.getElementById('installBtn').disabled = true;
+        const outputDiv = document.getElementById('installOutput');
+        outputDiv.innerHTML = '';
+        
+        // Simulate installation with progress
+        let step = 0;
+        const steps = [
+            `Resolving ${packageName}...`,
+            'Collecting package metadata...',
+            'Downloading package...',
+            'Installing package...',
+            'Verifying installation...'
+        ];
+        
+        const interval = setInterval(() => {
+            if (step < steps.length) {
+                const time = new Date().toLocaleTimeString();
+                outputDiv.innerHTML += `<div class="console-line">[${time}] ${steps[step]}</div>`;
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+                step++;
+            } else {
+                clearInterval(interval);
+                const time = new Date().toLocaleTimeString();
+                outputDiv.innerHTML += `<div class="console-line text-success">[${time}] Successfully installed ${packageName}</div>`;
+                
+                // Submit form after delay
+                setTimeout(() => {
+                    this.submit();
+                }, 1000);
+            }
+        }, 1000);
+    });
+    
+    function showInstallLog(installId) {
+        // In production, this would fetch the actual log from the server
+        const logContent = `Installation log for ID: ${installId}\n\n` +
+                          `[12:34:56] Starting installation...\n` +
+                          `[12:34:57] Downloading package...\n` +
+                          `[12:34:58] Installing dependencies...\n` +
+                          `[12:35:00] Installation completed successfully!\n`;
+        
+        document.getElementById('installLog').innerHTML = 
+            logContent.split('\n').map(line => 
+                `<div class="console-line">${line}</div>`
+            ).join('');
+        
+        const modal = new bootstrap.Modal(document.getElementById('logModal'));
+        modal.show();
+    }
+    
+    // Get system info (this would be filled by server in production)
+    document.addEventListener('DOMContentLoaded', function() {
+        // These would come from the server
+        window.python_version = '3.9+';
+        window.pip_version = '23.0+';
+        window.node_version = '18.0+';
+        window.npm_version = '9.0+';
+    });
+</script>
+{% endblock %}
