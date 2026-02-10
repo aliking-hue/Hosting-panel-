@@ -1,18 +1,16 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Bot Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="login-page">
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <i class="fas fa-robot"></i>
-                <h1>Bot Dashboard</h1>
+                <h1><i class="fas fa-robot"></i> Bot Dashboard</h1>
                 <p>Admin Login</p>
             </div>
             
@@ -44,10 +42,21 @@
             </form>
             
             <div class="login-footer">
-                <p>Default credentials: admin / admin123</p>
-                <p class="note">Change these in production!</p>
+                <p><i class="fas fa-bolt"></i> Powered by DARK MODS</p>
+                <a href="https://t.me/DARK0MODS" target="_blank" class="telegram-link">
+                    <i class="fab fa-telegram"></i> @DARK0MODS
+                </a>
+                <p class="note">Default: admin / admin123</p>
             </div>
         </div>
     </div>
+    
+    <script>
+        // Add Font Awesome icons
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+        document.head.appendChild(link);
+    </script>
 </body>
 </html>
