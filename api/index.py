@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify, send_file, session, 
 import sqlite3
 import json
 import os
+import sys
 import time
 import psutil
 from datetime import datetime
@@ -16,24 +17,96 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 # Import other modules
-from auth import login_required, check_auth
-from database import init_db, get_db, get_stats, get_users, get_user_files, log_event
-from utils import allowed_file, save_user_file, delete_user_file
+try:
+    from auth import login_required
+    from database import init_db, get_db, get_stats, get_users, get_user_files, log_event
+    from utils import allowed_file, save_user_file, delete_user_file
+except ImportError as e:
+    print(f"Import error: {e}")
+    # Define fallback functions if imports fail
+    def login_required(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            return f(*args, **kwargs)
+        return decorated_function
 
-app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-in-production')
-app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB limit
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['ALLOWED_EXTENSIONS'] = {'py', 'js', 'zip'}
+# Set up absolute paths for Vercel
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+TEMPLATE_DIR = os.path.join(PROJECT_ROOT, 'templates')
+STATIC_DIR = os.path.join(PROJECT_ROOT, 'static')
+UPLOADS_DIR = '/tmp/uploads'  # Use /tmp for Vercel writable storage
+LOGS_DIR = '/tmp/logs'  # Use /tmp for logs
+DATABASE_PATH = '/tmp/database.db'  # Use /tmp for Vercel writable storage
+
+print(f"BASE_DIR: {BASE_DIR}")
+print(f"PROJECT_ROOT: {PROJECT_ROOT}")
+print(f"TEMPLATE_DIR: {TEMPLATE_DIR}")
+print(f"STATIC_DIR: {STATIC_DIR}")
+print(f"DATABASE_PATH: {DATABASE_PATH}")
+
+# Create necessary directories
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
+os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+
+# Initialize Flask app with absolute paths
+try:
+    app = Flask(__name__, 
+                template_folder=TEMPLATE_DIR,
+                static_folder=STATIC_DIR)
+    
+    app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-in-production')
+    app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB limit
+    app.config['UPLOAD_FOLDER'] = UPLOADS_DIR
+    app.config['ALLOWED_EXTENSIONS'] = {'py', 'js', 'zip'}
+    
+    print(f"Flask app initialized with template folder: {app.template_folder}")
+    print(f"Flask app initialized with static folder: {app.static_folder}")
+    
+except Exception as e:
+    print(f"Error initializing Flask app: {e}")
+    raise
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
-handler = RotatingFileHandler('logs/app.log', maxBytes=10000, backupCount=3)
+handler = RotatingFileHandler(os.path.join(LOGS_DIR, 'app.log'), maxBytes=10000, backupCount=3)
 handler.setLevel(logging.INFO)
 app.logger.addHandler(handler)
 
-# Initialize database
-init_db()
+# Try to initialize database
+try:
+    # Update database path in environment
+    os.environ['DATABASE_PATH'] = DATABASE_PATH
+    
+    # Try to import and initialize database
+    from database import init_db, get_db, get_stats, get_users, get_user_files, log_event
+    
+    print("Initializing database...")
+    init_db()
+    print("Database initialized successfully")
+except Exception as e:
+    print(f"Error initializing database: {e}")
+    # Define fallback database functions
+    def init_db():
+        print("Fallback init_db called")
+        pass
+    
+    def get_db():
+        print("Fallback get_db called")
+        return None
+    
+    def get_stats():
+        return {'total_users': 0, 'active_users': 0, 'total_files': 0}
+    
+    def get_users():
+        return []
+    
+    def get_user_files(user_id):
+        return []
+    
+    def log_event(level, message, source='web'):
+        print(f"[{level.upper()}] {message}")
 
 # Mock script runner for Vercel (serverless-friendly)
 class ScriptRunner:
@@ -63,10 +136,7 @@ class ScriptRunner:
             f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Script ID: {script_id}",
             f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] User ID: {user_id}",
             f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Running in simulated environment...",
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Importing required modules...",
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Initializing bot instance...",
             f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Bot started successfully!",
-            f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Listening for messages..."
         ]
         
         self.script_logs[script_id] = logs
@@ -121,7 +191,10 @@ class ScriptRunner:
             self.system_logs = self.system_logs[-1000:]
         
         # Also log to file
-        log_event(level, message, 'web')
+        try:
+            log_event(level, message, 'web')
+        except:
+            pass
         
         # Also print to console
         app.logger.info(f"{timestamp} [{level.upper()}] {message}")
@@ -140,81 +213,109 @@ script_runner.add_system_log("Bot Dashboard started", "info")
 @login_required
 def index():
     """Dashboard home page"""
-    stats = get_stats()
-    running_scripts = script_runner.get_running_scripts()
-    
-    # Get system info for stats
-    cpu_usage = psutil.cpu_percent(interval=1)
-    memory = psutil.virtual_memory()
-    memory_usage = memory.percent
-    
-    return render_template('index.html', 
-                         stats=stats,
-                         cpu_usage=cpu_usage,
-                         memory_usage=memory_usage,
-                         running_scripts=len(running_scripts))
+    try:
+        stats = get_stats()
+        running_scripts = script_runner.get_running_scripts()
+        
+        # Get system info for stats
+        cpu_usage = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        memory_usage = memory.percent
+        
+        return render_template('index.html', 
+                             stats=stats,
+                             cpu_usage=cpu_usage,
+                             memory_usage=memory_usage,
+                             running_scripts=len(running_scripts))
+    except Exception as e:
+        app.logger.error(f"Error in index route: {e}")
+        return render_template('error.html', error=str(e)), 500
 
 @app.route('/files')
 @login_required
 def files_page():
     """File manager page"""
-    db = get_db()
-    cursor = db.cursor()
-    
-    # Get all files with user info
-    cursor.execute('''
-        SELECT uf.*, u.username, u.user_id as telegram_id 
-        FROM user_files uf
-        LEFT JOIN users u ON uf.user_id = u.id
-        ORDER BY uf.upload_date DESC
-    ''')
-    files = [dict(row) for row in cursor.fetchall()]
-    
-    # Get users for dropdown
-    cursor.execute('SELECT id, username, user_id FROM users ORDER BY username')
-    users = [dict(row) for row in cursor.fetchall()]
-    
-    db.close()
-    
-    return render_template('files.html', files=files, users=users)
+    try:
+        db = get_db()
+        if db:
+            cursor = db.cursor()
+            
+            # Get all files with user info
+            cursor.execute('''
+                SELECT uf.*, u.username, u.user_id as telegram_id 
+                FROM user_files uf
+                LEFT JOIN users u ON uf.user_id = u.id
+                ORDER BY uf.upload_date DESC
+            ''')
+            files = [dict(row) for row in cursor.fetchall()]
+            
+            # Get users for dropdown
+            cursor.execute('SELECT id, username, user_id FROM users ORDER BY username')
+            users = [dict(row) for row in cursor.fetchall()]
+            
+            db.close()
+        else:
+            files = []
+            users = []
+        
+        return render_template('files.html', files=files, users=users)
+    except Exception as e:
+        app.logger.error(f"Error in files_page route: {e}")
+        return render_template('error.html', error=str(e)), 500
 
 @app.route('/users')
 @login_required
 def users_page():
     """User management page"""
-    users = get_users()
-    return render_template('users.html', users=users)
+    try:
+        users = get_users()
+        return render_template('users.html', users=users)
+    except Exception as e:
+        app.logger.error(f"Error in users_page route: {e}")
+        return render_template('error.html', error=str(e)), 500
 
 @app.route('/logs')
 @login_required
 def logs_page():
     """Terminal/logs page"""
-    return render_template('logs.html')
+    try:
+        return render_template('logs.html')
+    except Exception as e:
+        app.logger.error(f"Error in logs_page route: {e}")
+        return render_template('error.html', error=str(e)), 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Admin login page"""
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+    try:
+        if request.method == 'POST':
+            username = request.form.get('username')
+            password = request.form.get('password')
+            
+            # Simple hardcoded admin credentials
+            if username == 'admin' and password == os.environ.get('ADMIN_PASSWORD', 'admin123'):
+                session['logged_in'] = True
+                session['username'] = username
+                script_runner.add_system_log(f"Admin logged in: {username}", "info")
+                return redirect(url_for('index'))
+            
+            return render_template('login.html', error='Invalid credentials')
         
-        # Simple hardcoded admin credentials
-        if username == 'admin' and password == os.environ.get('ADMIN_PASSWORD', 'admin123'):
-            session['logged_in'] = True
-            session['username'] = username
-            script_runner.add_system_log(f"Admin logged in: {username}", "info")
-            return redirect(url_for('index'))
-        
-        return render_template('login.html', error='Invalid credentials')
-    
-    return render_template('login.html')
+        return render_template('login.html')
+    except Exception as e:
+        app.logger.error(f"Error in login route: {e}")
+        return render_template('error.html', error=str(e)), 500
 
 @app.route('/logout')
 def logout():
     """Logout admin"""
-    script_runner.add_system_log(f"Admin logged out: {session.get('username', 'Unknown')}", "info")
-    session.clear()
-    return redirect(url_for('login'))
+    try:
+        script_runner.add_system_log(f"Admin logged out: {session.get('username', 'Unknown')}", "info")
+        session.clear()
+        return redirect(url_for('login'))
+    except Exception as e:
+        app.logger.error(f"Error in logout route: {e}")
+        return redirect(url_for('login'))
 
 # API Endpoints
 @app.route('/api/stats')
@@ -240,6 +341,7 @@ def api_stats():
             }
         })
     except Exception as e:
+        app.logger.error(f"Error in api_stats: {e}")
         script_runner.add_system_log(f"Error getting stats: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -251,6 +353,7 @@ def api_users():
         users = get_users()
         return jsonify({'success': True, 'users': users})
     except Exception as e:
+        app.logger.error(f"Error in api_users: {e}")
         script_runner.add_system_log(f"Error getting users: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -260,6 +363,9 @@ def toggle_ban_user(user_id):
     """Ban/Unban a user"""
     try:
         db = get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+            
         cursor = db.cursor()
         
         # Check if user is already banned
@@ -279,6 +385,7 @@ def toggle_ban_user(user_id):
         
         return jsonify({'success': False, 'error': 'User not found'}), 404
     except Exception as e:
+        app.logger.error(f"Error in toggle_ban_user: {e}")
         script_runner.add_system_log(f"Error banning user: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -294,6 +401,9 @@ def set_user_limit(user_id):
             return jsonify({'success': False, 'error': 'Invalid limit value'}), 400
         
         db = get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        
         cursor = db.cursor()
         
         # Get user info for logging
@@ -308,6 +418,7 @@ def set_user_limit(user_id):
         
         return jsonify({'success': True, 'message': 'User limit updated'})
     except Exception as e:
+        app.logger.error(f"Error in set_user_limit: {e}")
         script_runner.add_system_log(f"Error setting user limit: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -320,9 +431,13 @@ def set_user_subscription(user_id):
         days = data.get('days', 30)
         
         db = get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        
         cursor = db.cursor()
         
         # Calculate expiry date
+        from datetime import timedelta
         expiry_date = datetime.now().date() if days == 0 else datetime.now().date()
         if days > 0:
             expiry_date = datetime.now().date() + timedelta(days=days)
@@ -334,6 +449,7 @@ def set_user_subscription(user_id):
         script_runner.add_system_log(f"Set subscription for user {user_id} for {days} days", "info")
         return jsonify({'success': True, 'message': 'Subscription updated'})
     except Exception as e:
+        app.logger.error(f"Error in set_user_subscription: {e}")
         script_runner.add_system_log(f"Error setting subscription: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -343,6 +459,9 @@ def api_files():
     """Get all files"""
     try:
         db = get_db()
+        if not db:
+            return jsonify({'success': True, 'files': []})
+        
         cursor = db.cursor()
         
         cursor.execute('''
@@ -356,6 +475,7 @@ def api_files():
         
         return jsonify({'success': True, 'files': files})
     except Exception as e:
+        app.logger.error(f"Error in api_files: {e}")
         script_runner.add_system_log(f"Error getting files: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -373,6 +493,7 @@ def upload_file():
         if file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'}), 400
         
+        # Check file extension
         if not allowed_file(file.filename):
             return jsonify({'success': False, 'error': 'File type not allowed. Only .py, .js, .zip allowed'}), 400
         
@@ -434,6 +555,7 @@ def upload_file():
             'path': file_path
         })
     except Exception as e:
+        app.logger.error(f"Error in upload_file: {e}")
         script_runner.add_system_log(f"Error uploading file: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -442,28 +564,12 @@ def upload_file():
 def delete_file(file_id):
     """Delete a file"""
     try:
-        db = get_db()
-        cursor = db.cursor()
-        
-        # Get file info first
-        cursor.execute('SELECT filename, file_path FROM user_files WHERE id = ?', (file_id,))
-        file_info = cursor.fetchone()
-        
-        if not file_info:
-            return jsonify({'success': False, 'error': 'File not found'}), 404
-        
-        # Delete physical file
-        if os.path.exists(file_info['file_path']):
-            os.remove(file_info['file_path'])
-        
-        # Delete database record
-        cursor.execute('DELETE FROM user_files WHERE id = ?', (file_id,))
-        db.commit()
-        db.close()
-        
-        script_runner.add_system_log(f"File deleted: {file_info['filename']}", "warning")
-        return jsonify({'success': True, 'message': 'File deleted successfully'})
+        if delete_user_file(file_id):
+            script_runner.add_system_log(f"File deleted: {file_id}", "warning")
+            return jsonify({'success': True, 'message': 'File deleted successfully'})
+        return jsonify({'success': False, 'error': 'File not found'}), 404
     except Exception as e:
+        app.logger.error(f"Error in delete_file: {e}")
         script_runner.add_system_log(f"Error deleting file: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -473,6 +579,9 @@ def run_file(file_id):
     """Run a script file"""
     try:
         db = get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        
         cursor = db.cursor()
         
         # Get file info
@@ -499,6 +608,7 @@ def run_file(file_id):
             'script_id': script_id
         })
     except Exception as e:
+        app.logger.error(f"Error in run_file: {e}")
         script_runner.add_system_log(f"Error running script: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -511,6 +621,7 @@ def stop_script(script_id):
             return jsonify({'success': True, 'message': 'Script stopped'})
         return jsonify({'success': False, 'error': 'Script not found'}), 404
     except Exception as e:
+        app.logger.error(f"Error in stop_script: {e}")
         script_runner.add_system_log(f"Error stopping script: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -522,6 +633,7 @@ def get_running_scripts():
         scripts = script_runner.get_running_scripts()
         return jsonify({'success': True, 'scripts': scripts})
     except Exception as e:
+        app.logger.error(f"Error in get_running_scripts: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/logs')
@@ -551,6 +663,7 @@ def get_logs():
         
         return jsonify({'success': True, 'logs': formatted_logs})
     except Exception as e:
+        app.logger.error(f"Error in get_logs: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/file/<int:file_id>/download')
@@ -559,6 +672,9 @@ def download_file(file_id):
     """Download a file"""
     try:
         db = get_db()
+        if not db:
+            return jsonify({'success': False, 'error': 'Database not available'}), 500
+        
         cursor = db.cursor()
         cursor.execute('SELECT file_path, filename FROM user_files WHERE id = ?', (file_id,))
         file_info = cursor.fetchone()
@@ -570,19 +686,41 @@ def download_file(file_id):
                         as_attachment=True, 
                         download_name=file_info['filename'])
     except Exception as e:
+        app.logger.error(f"Error in download_file: {e}")
         script_runner.add_system_log(f"Error downloading file: {str(e)}", "error")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Health check endpoint for Vercel
 @app.route('/health')
 def health():
-    return jsonify({'status': 'ok', 'timestamp': datetime.now().isoformat()})
+    return jsonify({
+        'status': 'ok', 
+        'timestamp': datetime.now().isoformat(),
+        'database': os.path.exists(DATABASE_PATH),
+        'uploads_dir': os.path.exists(UPLOADS_DIR),
+        'templates_dir': os.path.exists(TEMPLATE_DIR)
+    })
+
+# Error handler
+@app.errorhandler(404)
+def not_found(error):
+    return render_template('error.html', error='Page not found'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    app.logger.error(f"500 Error: {error}")
+    return render_template('error.html', error='Internal server error'), 500
 
 # This is required for Vercel
 if __name__ == '__main__':
-    os.makedirs('uploads', exist_ok=True)
-    os.makedirs('logs', exist_ok=True)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    try:
+        print("Starting Flask app in development mode...")
+        app.run(debug=True, host='0.0.0.0', port=5000)
+    except Exception as e:
+        print(f"Failed to start Flask app: {e}")
+        raise
 else:
     # This is for Vercel serverless
-    handler = app
+    print("Flask app initialized for Vercel")
+    # Vercel expects the app object to be named 'app'
+    # No need to do anything else here
