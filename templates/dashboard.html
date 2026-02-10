@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Bot Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <h1><i class="fas fa-robot"></i> Bot Dashboard</h1>
+            <p>Welcome, {{ username }}!</p>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-secondary" onclick="refreshAll()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <a href="/logout" class="btn btn-danger">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- System Stats -->
+        <div class="section">
+            <h2><i class="fas fa-chart-line"></i> System Status</h2>
+            <div class="stats-grid" id="systemStats">
+                <div class="stat-card">
+                    <div class="stat-icon cpu">
+                        <i class="fas fa-microchip"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3>CPU Usage</h3>
+                        <div class="stat-value" id="cpuUsage">0%</div>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon memory">
+                        <i class="fas fa-memory"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3>RAM Usage</h3>
+                        <div class="stat-value" id="memoryUsage">0%</div>
+                        <p class="stat-sub" id="memoryDetails">0MB/0MB</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon users">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3>Total Users</h3>
+                        <div class="stat-value" id="totalUsers">0</div>
+                        <p class="stat-sub" id="activeUsers">0 active</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon files">
+                        <i class="fas fa-file-code"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3>Total Files</h3>
+                        <div class="stat-value" id="totalFiles">0</div>
+                        <p class="stat-sub" id="totalSize">0 MB</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Manager -->
+        <div class="section">
+            <div class="section-header">
+                <h2><i class="fas fa-folder-open"></i> File Manager</h2>
+                <div class="section-actions">
+                    <input type="text" id="fileSearch" placeholder="Search files..." class="search-input">
+                    <button class="btn btn-primary" onclick="showUploadModal()">
+                        <i class="fas fa-upload"></i> Upload
+                    </button>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>File Name</th>
+                            <th>Size</th>
+                            <th>Modified</th>
+                            <th>User</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="filesTable">
+                        <tr>
+                            <td colspan="5" class="text-center">
+                                <i class="fas fa-spinner fa-spin"></i> Loading files...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- User Manager -->
+        <div class="section">
+            <div class="section-header">
+                <h2><i class="fas fa-users-cog"></i> User Management</h2>
+                <input type="text" id="userSearch" placeholder="Search users..." class="search-input">
+            </div>
+            
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Username</th>
+                            <th>Telegram ID</th>
+                            <th>Join Date</th>
+                            <th>Files</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTable">
+                        <tr>
+                            <td colspan="7" class="text-center">
+                                <i class="fas fa-spinner fa-spin"></i> Loading users...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-upload"></i> Upload File</h3>
+                <button class="modal-close" onclick="closeUploadModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadForm">
+                    <div class="form-group">
+                        <label for="fileInput">
+                            <i class="fas fa-file"></i> Select File
+                        </label>
+                        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Click to select a file</p>
+                            <input type="file" id="fileInput" hidden>
+                        </div>
+                        <div id="fileInfo" style="display: none; margin-top: 10px;">
+                            <p><strong>Selected:</strong> <span id="fileName"></span></p>
+                            <p><strong>Size:</strong> <span id="fileSize"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeUploadModal()">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="uploadBtn">
+                            <i class="fas fa-upload"></i> Upload
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <p><i class="fas fa-bolt"></i> Powered by DARK MODS</p>
+            <a href="https://t.me/DARK0MODS" target="_blank" class="telegram-link">
+                <i class="fab fa-telegram"></i> @DARK0MODS
+            </a>
+        </div>
+    </footer>
+
+    <script>
+        // Add Font Awesome
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+        document.head.appendChild(link);
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSystemStats();
+            loadFiles();
+            loadUsers();
+            loadDashboardStats();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(loadSystemStats, 30000);
+            setInterval(loadDashboardStats, 30000);
+            
+            // File upload handling
+            document.getElementById('fileInput').addEventListener('change', function(e) {
+                if (this.files.length > 0) {
+                    const file = this.files[0];
+                    document.getElementById('fileName').textContent = file.name;
+                    document.getElementById('fileSize').textContent = formatFileSize(file.size);
+                    document.getElementById('fileInfo').style.display = 'block';
+                }
+            });
+            
+            document.getElementById('uploadForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                uploadFile();
+            });
+            
+            // Search functionality
+            document.getElementById('fileSearch').addEventListener('input', function(e) {
+                filterTable('filesTable', e.target.value);
+            });
+            
+            document.getElementById('userSearch').addEventListener('input', function(e) {
+                filterTable('usersTable', e.target.value);
+            });
+        });
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        }
+        
+        function loadSystemStats() {
+            fetch('/api/system-stats')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('cpuUsage').textContent = 
+                            data.cpu_usage.toFixed(1) + '%';
+                        document.getElementById('memoryUsage').textContent = 
+                            data.memory_usage.toFixed(1) + '%';
+                        document.getElementById('memoryDetails').textContent = 
+                            `${data.memory_used}MB/${data.memory_total}MB`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading system stats:', error);
+                });
+        }
+        
+        function loadDashboardStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const stats = data.stats;
+                        document.getElementById('totalUsers').textContent = stats.total_users;
+                        document.getElementById('activeUsers').textContent = 
+                            `${stats.active_users} active, ${stats.banned_users} banned`;
+                        document.getElementById('totalFiles').textContent = stats.disk_file_count;
+                        document.getElementById('totalSize').textContent = 
+                            formatFileSize(stats.disk_total_size);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading dashboard stats:', error);
+                });
+        }
+        
+        function loadFiles() {
+            fetch('/api/files')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const tbody = document.getElementById('filesTable');
+                        tbody.innerHTML = '';
+                        
+                        if (data.files.length === 0) {
+                            tbody.innerHTML = `
+                                <tr>
+                                    <td colspan="5" class="text-center">
+                                        <i class="fas fa-folder-open"></i> No files found
+                                    </td>
+                                </tr>
+                            `;
+                            return;
+                        }
+                        
+                        data.files.forEach(file => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>
+                                    <i class="fas fa-file-code"></i>
+                                    ${file.name}
+                                </td>
+                                <td>${formatFileSize(file.size)}</td>
+                                <td>${formatDate(file.modified)}</td>
+                                <td>${file.user_folder}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteFile('${file.path}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading files:', error);
+                    document.getElementById('filesTable').innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center text-error">
+                                <i class="fas fa-exclamation-circle"></i> Error loading files
+                            </td>
+                        </tr>
+                    `;
+                });
+        }
+        
+        function loadUsers() {
+            fetch('/api/users')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const tbody = document.getElementById('usersTable');
+                        tbody.innerHTML = '';
+                        
+                        data.users.forEach(user => {
+                            const row = document.createElement('tr');
+                            
+                            let statusBadge = '';
+                            if (user.banned) {
+                                statusBadge = '<span class="badge badge-danger">Banned</span>';
+                            } else if (user.subscription_active) {
+                                statusBadge = `<span class="badge badge-premium">Premium (${user.days_left}d)</span>`;
+                            } else if (user.is_admin) {
+                                statusBadge = '<span class="badge badge-admin">Admin</span>';
+                            } else {
+                                statusBadge = '<span class="badge badge-success">Active</span>';
+                            }
+                            
+                            row.innerHTML = `
+                                <td>${user.id}</td>
+                                <td>${user.username}</td>
+                                <td>${user.telegram_id || 'N/A'}</td>
+                                <td>${formatDate(user.join_date)}</td>
+                                <td>${user.file_count || 0}</td>
+                                <td>${statusBadge}</td>
+                                <td>
+                                    ${!user.banned ? `
+                                    <button class="btn btn-sm btn-warning" onclick="banUser(${user.id})">
+                                        <i class="fas fa-ban"></i> Ban
+                                    </button>
+                                    ` : `
+                                    <button class="btn btn-sm btn-success" onclick="unbanUser(${user.id})">
+                                        <i class="fas fa-check"></i> Unban
+                                    </button>
+                                    `}
+                                </td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading users:', error);
+                    document.getElementById('usersTable').innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center text-error">
+                                <i class="fas fa-exclamation-circle"></i> Error loading users
+                            </td>
+                        </tr>
+                    `;
+                });
+        }
+        
+        function deleteFile(filepath) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+            
+            fetch('/api/file/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: filepath})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('File deleted successfully', 'success');
+                    loadFiles();
+                    loadDashboardStats();
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Error deleting file', 'error');
+            });
+        }
+        
+        function banUser(userId) {
+            if (!confirm('Are you sure you want to ban this user?')) return;
+            
+            fetch(`/api/user/${userId}/toggle-ban`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    loadUsers();
+                    loadDashboardStats();
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Error banning user', 'error');
+            });
+        }
+        
+        function unbanUser(userId) {
+            if (!confirm('Are you sure you want to unban this user?')) return;
+            
+            fetch(`/api/user/${userId}/toggle-ban`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    loadUsers();
+                    loadDashboardStats();
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Error unbanning user', 'error');
+            });
+        }
+        
+        function showUploadModal() {
+            document.getElementById('uploadModal').style.display = 'flex';
+        }
+        
+        function closeUploadModal() {
+            document.getElementById('uploadModal').style.display = 'none';
+            document.getElementById('uploadForm').reset();
+            document.getElementById('fileInfo').style.display = 'none';
+        }
+        
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            if (!fileInput.files.length) {
+                showToast('Please select a file first', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+            uploadBtn.disabled = true;
+            
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    closeUploadModal();
+                    loadFiles();
+                    loadDashboardStats();
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Upload failed', 'error');
+            })
+            .finally(() => {
+                uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Upload';
+                uploadBtn.disabled = false;
+            });
+        }
+        
+        function filterTable(tableId, searchTerm) {
+            const table = document.getElementById(tableId);
+            const rows = table.getElementsByTagName('tr');
+            const term = searchTerm.toLowerCase();
+            
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(term) ? '' : 'none';
+            }
+        }
+        
+        function refreshAll() {
+            loadSystemStats();
+            loadFiles();
+            loadUsers();
+            loadDashboardStats();
+            showToast('Refreshed all data', 'success');
+        }
+        
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : 'info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            
+            document.getElementById('toastContainer').appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
