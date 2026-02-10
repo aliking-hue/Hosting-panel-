@@ -1,8 +1,14 @@
+import sys
+import os
+
+# Add the current directory to Python path for module resolution
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+print(f"Python path: {sys.path}")
+print(f"Current directory: {os.path.dirname(os.path.abspath(__file__))}")
+
 from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
 import sqlite3
 import json
-import os
-import sys
 import time
 import psutil
 from datetime import datetime
@@ -16,39 +22,102 @@ import uuid
 import logging
 from logging.handlers import RotatingFileHandler
 
-# Import other modules
+# Try relative imports for local modules
 try:
-    from auth import login_required
-    from database import init_db, get_db, get_stats, get_users, get_user_files, log_event
-    from utils import allowed_file, save_user_file, delete_user_file
+    print("Attempting to import local modules...")
+    from . import auth
+    from . import database
+    from . import utils
+    print("Local modules imported successfully")
+    
+    # Import specific functions
+    from .auth import login_required
+    from .database import init_db, get_db, get_stats, get_users, get_user_files, log_event
+    from .utils import allowed_file, save_user_file, delete_user_file
+    
 except ImportError as e:
-    print(f"Import error: {e}")
-    # Define fallback functions if imports fail
-    def login_required(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            return f(*args, **kwargs)
-        return decorated_function
+    print(f"Relative import error: {e}")
+    print("Attempting direct import...")
+    try:
+        # Try direct import as fallback
+        import auth
+        import database
+        import utils
+        
+        from auth import login_required
+        from database import init_db, get_db, get_stats, get_users, get_user_files, log_event
+        from utils import allowed_file, save_user_file, delete_user_file
+        print("Direct import successful")
+        
+    except ImportError as e2:
+        print(f"Direct import also failed: {e2}")
+        print("Creating fallback functions...")
+        
+        # Create fallback functions
+        def login_required(f):
+            @wraps(f)
+            def decorated_function(*args, **kwargs):
+                return f(*args, **kwargs)
+            return decorated_function
+        
+        def init_db():
+            print("Fallback init_db called")
+            pass
+        
+        def get_db():
+            print("Fallback get_db called")
+            return None
+        
+        def get_stats():
+            return {'total_users': 0, 'active_users': 0, 'total_files': 0}
+        
+        def get_users():
+            return []
+        
+        def get_user_files(user_id):
+            return []
+        
+        def log_event(level, message, source='web'):
+            print(f"[{level.upper()}] {message}")
+        
+        def allowed_file(filename):
+            return '.' in filename and \
+                   filename.rsplit('.', 1)[1].lower() in {'py', 'js', 'zip'}
+        
+        def save_user_file(user_id, filename, file_path):
+            print(f"Fallback: Saving file {filename} for user {user_id}")
+            return True
+        
+        def delete_user_file(file_id):
+            print(f"Fallback: Deleting file {file_id}")
+            return True
 
 # Set up absolute paths for Vercel
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(BASE_DIR)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(PROJECT_ROOT, 'templates')
 STATIC_DIR = os.path.join(PROJECT_ROOT, 'static')
-UPLOADS_DIR = '/tmp/uploads'  # Use /tmp for Vercel writable storage
-LOGS_DIR = '/tmp/logs'  # Use /tmp for logs
-DATABASE_PATH = '/tmp/database.db'  # Use /tmp for Vercel writable storage
+
+# Use /tmp for Vercel writable storage
+UPLOADS_DIR = '/tmp/uploads'
+LOGS_DIR = '/tmp/logs'
+DATABASE_PATH = '/tmp/database.db'
 
 print(f"BASE_DIR: {BASE_DIR}")
 print(f"PROJECT_ROOT: {PROJECT_ROOT}")
 print(f"TEMPLATE_DIR: {TEMPLATE_DIR}")
 print(f"STATIC_DIR: {STATIC_DIR}")
 print(f"DATABASE_PATH: {DATABASE_PATH}")
+print(f"Files in current directory: {os.listdir(BASE_DIR)}")
 
-# Create necessary directories
-os.makedirs(UPLOADS_DIR, exist_ok=True)
-os.makedirs(LOGS_DIR, exist_ok=True)
-os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+# Create necessary directories in /tmp
+try:
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+    print("Created necessary directories in /tmp")
+except Exception as e:
+    print(f"Error creating directories: {e}")
 
 # Initialize Flask app with absolute paths
 try:
@@ -70,43 +139,24 @@ except Exception as e:
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
-handler = RotatingFileHandler(os.path.join(LOGS_DIR, 'app.log'), maxBytes=10000, backupCount=3)
-handler.setLevel(logging.INFO)
-app.logger.addHandler(handler)
+try:
+    handler = RotatingFileHandler(os.path.join(LOGS_DIR, 'app.log'), maxBytes=10000, backupCount=3)
+    handler.setLevel(logging.INFO)
+    app.logger.addHandler(handler)
+    print("Logging configured successfully")
+except Exception as e:
+    print(f"Error setting up logging: {e}")
 
-# Try to initialize database
+# Try to initialize database with /tmp path
 try:
     # Update database path in environment
     os.environ['DATABASE_PATH'] = DATABASE_PATH
     
-    # Try to import and initialize database
-    from database import init_db, get_db, get_stats, get_users, get_user_files, log_event
-    
-    print("Initializing database...")
+    print("Initializing database at:", DATABASE_PATH)
     init_db()
     print("Database initialized successfully")
 except Exception as e:
     print(f"Error initializing database: {e}")
-    # Define fallback database functions
-    def init_db():
-        print("Fallback init_db called")
-        pass
-    
-    def get_db():
-        print("Fallback get_db called")
-        return None
-    
-    def get_stats():
-        return {'total_users': 0, 'active_users': 0, 'total_files': 0}
-    
-    def get_users():
-        return []
-    
-    def get_user_files(user_id):
-        return []
-    
-    def log_event(level, message, source='web'):
-        print(f"[{level.upper()}] {message}")
 
 # Mock script runner for Vercel (serverless-friendly)
 class ScriptRunner:
@@ -698,7 +748,8 @@ def health():
         'timestamp': datetime.now().isoformat(),
         'database': os.path.exists(DATABASE_PATH),
         'uploads_dir': os.path.exists(UPLOADS_DIR),
-        'templates_dir': os.path.exists(TEMPLATE_DIR)
+        'templates_dir': os.path.exists(TEMPLATE_DIR),
+        'files_in_api': os.listdir(BASE_DIR)
     })
 
 # Error handler
@@ -710,6 +761,11 @@ def not_found(error):
 def internal_error(error):
     app.logger.error(f"500 Error: {error}")
     return render_template('error.html', error='Internal server error'), 500
+
+# Static route for serving static files directly (for debugging)
+@app.route('/debug-static/<path:filename>')
+def debug_static(filename):
+    return send_from_directory(STATIC_DIR, filename)
 
 # This is required for Vercel
 if __name__ == '__main__':
@@ -723,4 +779,3 @@ else:
     # This is for Vercel serverless
     print("Flask app initialized for Vercel")
     # Vercel expects the app object to be named 'app'
-    # No need to do anything else here
